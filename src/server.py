@@ -27,11 +27,16 @@ from openinference.instrumentation.langchain import LangChainInstrumentor
 # ---------------------------------------------------------------------------
 # 1. Phoenix OTEL setup
 # ---------------------------------------------------------------------------
+_endpoint = os.environ.get("PHOENIX_COLLECTOR_ENDPOINT")
+if _endpoint and not _endpoint.rstrip("/").endswith("/v1/traces"):
+    _endpoint = _endpoint.rstrip("/") + "/v1/traces"
+
 tracer_provider = register(
     project_name="lab-agentic-chat",
-    endpoint=os.environ.get("PHOENIX_COLLECTOR_ENDPOINT"),
+    endpoint=_endpoint,
     api_key=os.environ.get("PHOENIX_API_KEY"),
     protocol="http/protobuf",
+    batch=True,
     verbose=True,
 )
 LangChainInstrumentor().instrument(tracer_provider=tracer_provider)
@@ -86,8 +91,8 @@ async def index():
 
 
 @app.get("/chat")
-async def chat(message: str):
-    async def event_stream():
+def chat(message: str):
+    def event_stream():
         for event in graph.stream(
             {"messages": [{"role": "user", "content": message}]}
         ):

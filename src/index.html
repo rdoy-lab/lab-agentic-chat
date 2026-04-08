@@ -58,6 +58,7 @@
       let assistantDiv = null;
 
       es.onmessage = (e) => {
+        if (!e.data.startsWith("{")) return;
         const data = JSON.parse(e.data);
         if (data.type === "assistant") {
           if (!assistantDiv) assistantDiv = appendMsg("assistant", "");
