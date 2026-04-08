@@ -93,21 +93,24 @@ async def index():
 @app.get("/chat")
 def chat(message: str):
     def event_stream():
-        for event in graph.stream(
-            {"messages": [{"role": "user", "content": message}]}
-        ):
-            for node, value in event.items():
-                if not isinstance(value, dict) or "messages" not in value:
-                    continue
-                msg = value["messages"][-1]
-                if node == "tools":
-                    for tc in msg.content if isinstance(msg.content, list) else [msg.content]:
-                        yield f"data: {json.dumps({'type': 'tool_result', 'content': str(tc)[:500]})}\n\n"
-                elif hasattr(msg, "tool_calls") and msg.tool_calls:
-                    for tc in msg.tool_calls:
-                        yield f"data: {json.dumps({'type': 'tool_call', 'name': tc['name'], 'args': tc['args']})}\n\n"
-                elif hasattr(msg, "content") and msg.content:
-                    yield f"data: {json.dumps({'type': 'assistant', 'content': msg.content})}\n\n"
+        try:
+            for event in graph.stream(
+                {"messages": [{"role": "user", "content": message}]}
+            ):
+                for node, value in event.items():
+                    if not isinstance(value, dict) or "messages" not in value:
+                        continue
+                    msg = value["messages"][-1]
+                    if node == "tools":
+                        for tc in msg.content if isinstance(msg.content, list) else [msg.content]:
+                            yield f"data: {json.dumps({'type': 'tool_result', 'content': str(tc)[:500]})}\n\n"
+                    elif hasattr(msg, "tool_calls") and msg.tool_calls:
+                        for tc in msg.tool_calls:
+                            yield f"data: {json.dumps({'type': 'tool_call', 'name': tc['name'], 'args': tc['args']})}\n\n"
+                    elif hasattr(msg, "content") and msg.content:
+                        yield f"data: {json.dumps({'type': 'assistant', 'content': msg.content})}\n\n"
+        except Exception as exc:
+            yield f"data: {json.dumps({'type': 'error', 'content': str(exc)})}\n\n"
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
     return EventSourceResponse(event_stream())
