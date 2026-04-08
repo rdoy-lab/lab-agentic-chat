@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #1a1a2e; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+    header { padding: 16px 24px; background: #16213e; border-bottom: 1px solid #0f3460; font-size: 18px; font-weight: 600; }
+    #messages { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+    .msg { max-width: 720px; padding: 12px 16px; border-radius: 12px; line-height: 1.6; white-space: pre-wrap; }
+    .msg.user { align-self: flex-end; background: #0f3460; }
+    .msg.assistant { align-self: flex-start; background: #16213e; }
+    .msg.tool { align-self: flex-start; background: #1a1a2e; border: 1px dashed #0f3460; font-size: 13px; color: #888; }
+    .msg .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #666; margin-bottom: 4px; }
+    #input-area { padding: 16px 24px; background: #16213e; border-top: 1px solid #0f3460; display: flex; gap: 12px; }
+    #input-area input { flex: 1; padding: 12px 16px; border: 1px solid #0f3460; border-radius: 8px; background: #1a1a2e; color: #e0e0e0; font-size: 15px; outline: none; }
+    #input-area input:focus { border-color: #e94560; }
+    #input-area button { padding: 12px 24px; border: none; border-radius: 8px; background: #e94560; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; }
+    #input-area button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .typing::after { content: "▊"; animation: blink 1s infinite; }
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+  </style>
+</head>
+<body>
+  <header>Chat</header>
+  <div id="messages"></div>
+  <div id="input-area">
+    <input id="input" type="text" placeholder="Type a message…" autocomplete="off" />
+    <button id="send">Send</button>
+  </div>
+  <script>
+    const messagesEl = document.getElementById("messages");
+    const inputEl = document.getElementById("input");
+    const sendBtn = document.getElementById("send");
+
+    function appendMsg(role, text) {
+      const div = document.createElement("div");
+      div.className = `msg ${role}`;
+      const label = role === "tool" ? "Wikipedia" : role.charAt(0).toUpperCase() + role.slice(1);
+      div.innerHTML = `<div class="label">${label}</div>${text}`;
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      return div;
+    }
+
+    async function send() {
+      const text = inputEl.value.trim();
+      if (!text) return;
+      inputEl.value = "";
+      sendBtn.disabled = true;
+      inputEl.disabled = true;
+
+      appendMsg("user", text);
+
+      const es = new EventSource(`/chat?message=${encodeURIComponent(text)}`);
+      let assistantDiv = null;
+
+      es.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.type === "assistant") {
+          if (!assistantDiv) assistantDiv = appendMsg("assistant", "");
+          assistantDiv.textContent = assistantDiv.querySelector(".label").textContent
+            ? assistantDiv.textContent.replace(/^[^\n]+\n/, "")
+            : "";
+          // replace content after label
+          assistantDiv.innerHTML = `<div class="label">Assistant</div>${data.content}`;
+        } else if (data.type === "tool_call") {
+          appendMsg("tool", `Calling ${data.name}(${JSON.stringify(data.args)})…`);
+        } else if (data.type === "tool_result") {
+          appendMsg("tool", data.content);
+        } else if (data.type === "done") {
+          es.close();
+          sendBtn.disabled = false;
+          inputEl.disabled = false;
+          inputEl.focus();
+        }
+      };
+
+      es.onerror = () => {
+        es.close();
+        sendBtn.disabled = false;
+        inputEl.disabled = false;
+      };
+    }
+
+    sendBtn.addEventListener("click", send);
+    inputEl.addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+    inputEl.focus();
+  </script>
+</body>
+</html>

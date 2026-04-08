@@ -1,0 +1,16 @@
+[project]
+name = "lab-agentic-chat"
+version = "0.1.0"
+description = "Simple LLM chat app with LangGraph and Phoenix OTEL instrumentation"
+requires-python = ">=3.11"
+dependencies = [
+    "langgraph",
+    "langchain-openai",
+    "langchain-community",
+    "wikipedia",
+    "fastapi",
+    "uvicorn[standard]",
+    "sse-starlette",
+    "arize-phoenix-otel",
+    "openinference-instrumentation-langchain",
+]
