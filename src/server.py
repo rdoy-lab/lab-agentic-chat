@@ -12,8 +12,11 @@ from typing import Annotated
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
+from datetime import date
+
 from langchain_community.tools import WikipediaQueryRun
 from langchain_community.utilities import WikipediaAPIWrapper
+from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
@@ -50,7 +53,15 @@ wikipedia_tool = WikipediaQueryRun(
         doc_content_chars_max=2000,
     )
 )
-tools = [wikipedia_tool]
+
+
+@tool
+def get_today_date() -> str:
+    """Returns today's date in YYYY-MM-DD format."""
+    return date.today().isoformat()
+
+
+tools = [wikipedia_tool, get_today_date]
 
 # ---------------------------------------------------------------------------
 # 3. LangGraph state & graph definition
