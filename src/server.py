@@ -92,6 +92,9 @@ async def index():
 
 @app.get("/chat")
 def chat(message: str):
+    def _sse(type_, **kwargs):
+        return {"data": json.dumps({"type": type_, **kwargs})}
+
     def event_stream():
         try:
             for event in graph.stream(
@@ -100,18 +103,21 @@ def chat(message: str):
                 for node, value in event.items():
                     if not isinstance(value, dict) or "messages" not in value:
                         continue
-                    msg = value["messages"][-1]
+                    msgs = value["messages"]
+                    msg = msgs[-1]
+                    content = msg.content if hasattr(msg, "content") else ""
                     if node == "tools":
-                        for tc in msg.content if isinstance(msg.content, list) else [msg.content]:
-                            yield f"data: {json.dumps({'type': 'tool_result', 'content': str(tc)[:500]})}\n\n"
+                        for tc in content if isinstance(content, list) else [content]:
+                            yield _sse("tool_result", content=str(tc)[:500])
                     elif hasattr(msg, "tool_calls") and msg.tool_calls:
                         for tc in msg.tool_calls:
-                            yield f"data: {json.dumps({'type': 'tool_call', 'name': tc['name'], 'args': tc['args']})}\n\n"
-                    elif hasattr(msg, "content") and msg.content:
-                        yield f"data: {json.dumps({'type': 'assistant', 'content': msg.content})}\n\n"
+                            yield _sse("tool_call", name=tc["name"], args=tc["args"])
+                    elif content:
+                        text = json.dumps(content) if isinstance(content, list) else str(content)
+                        yield _sse("assistant", content=text)
         except Exception as exc:
-            yield f"data: {json.dumps({'type': 'error', 'content': str(exc)})}\n\n"
-        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            yield _sse("error", content=str(exc))
+        yield _sse("done")
 
     return EventSourceResponse(event_stream())
 

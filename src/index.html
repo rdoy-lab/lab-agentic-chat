@@ -56,17 +56,21 @@
 
       const es = new EventSource(`/chat?message=${encodeURIComponent(text)}`);
       let assistantDiv = null;
+      let assistantContent = "";
 
       es.onmessage = (e) => {
+        console.log("SSE raw:", JSON.stringify(e.data));
         if (!e.data.startsWith("{")) return;
         const data = JSON.parse(e.data);
+        console.log("SSE parsed:", data);
         if (data.type === "assistant") {
-          if (!assistantDiv) assistantDiv = appendMsg("assistant", "");
-          assistantDiv.textContent = assistantDiv.querySelector(".label").textContent
-            ? assistantDiv.textContent.replace(/^[^\n]+\n/, "")
-            : "";
-          // replace content after label
-          assistantDiv.innerHTML = `<div class="label">Assistant</div>${data.content}`;
+          const text = typeof data.content === "string" ? data.content : JSON.stringify(data.content);
+          if (!assistantDiv) {
+            assistantDiv = appendMsg("assistant", "");
+            assistantContent = "";
+          }
+          assistantContent += text;
+          assistantDiv.innerHTML = `<div class="label">Assistant</div>${assistantContent}`;
         } else if (data.type === "tool_call") {
           appendMsg("tool", `Calling ${data.name}(${JSON.stringify(data.args)})…`);
         } else if (data.type === "tool_result") {
