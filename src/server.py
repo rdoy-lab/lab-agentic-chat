@@ -119,7 +119,8 @@ def chat(message: str):
                     content = msg.content if hasattr(msg, "content") else ""
                     if node == "tools":
                         for tc in content if isinstance(content, list) else [content]:
-                            yield _sse("tool_result", content=str(tc)[:500])
+                            name = getattr(tc, "name", None) or getattr(tc, "tool_call_id", None) or "Tool"
+                            yield _sse("tool_result", name=name, content=str(tc)[:500])
                     elif hasattr(msg, "tool_calls") and msg.tool_calls:
                         for tc in msg.tool_calls:
                             yield _sse("tool_call", name=tc["name"], args=tc["args"])
