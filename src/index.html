@@ -70,9 +70,10 @@
       let assistantContent = "";
 
       es.onmessage = (e) => {
-        console.log("SSE raw:", JSON.stringify(e.data));
-        if (!e.data.startsWith("{")) return;
-        const data = JSON.parse(e.data);
+        let raw = e.data;
+        if (raw.startsWith("data: ")) raw = raw.slice(6);
+        if (!raw.startsWith("{")) return;
+        const data = JSON.parse(raw);
         console.log("SSE parsed:", data);
         if (thinkDiv.parentNode) thinkDiv.remove();
         if (data.type === "assistant") {
