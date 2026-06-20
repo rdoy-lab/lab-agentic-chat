@@ -8,8 +8,10 @@ Usage:
 
 import json
 import os
+import uuid
 from typing import Annotated
 
+from cachetools import TTLCache
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from datetime import date
@@ -91,7 +93,12 @@ graph_builder.add_edge("tools", "chatbot")
 graph = graph_builder.compile()
 
 # ---------------------------------------------------------------------------
-# 4. FastAPI app
+# 4. Session storage (TTL-based, auto-evicting)
+# ---------------------------------------------------------------------------
+sessions: TTLCache = TTLCache(maxsize=1000, ttl=3600)  # 1hr TTL, 1000 max sessions
+
+# ---------------------------------------------------------------------------
+# 5. FastAPI app
 # ---------------------------------------------------------------------------
 app = FastAPI()
 
@@ -102,15 +109,27 @@ async def index():
 
 
 @app.get("/chat")
-def chat(message: str):
+def chat(message: str, session_id: str | None = None):
     def _sse(type_, **kwargs):
         return {"data": json.dumps({"type": type_, **kwargs})}
 
     def event_stream():
         try:
-            for event in graph.stream(
-                {"messages": [{"role": "user", "content": message}]}
-            ):
+            # Resolve or create session
+            nonlocal session_id
+            if session_id is None or session_id not in sessions:
+                session_id = str(uuid.uuid4())
+                sessions[session_id] = []
+            history = sessions[session_id]
+
+            # Send session_id on first event so client can track it
+            yield _sse("session_id", session_id=session_id)
+
+            # Append user message to history
+            history.append({"role": "user", "content": message})
+
+            # Stream with full conversation history
+            for event in graph.stream({"messages": list(history)}):
                 for node, value in event.items():
                     if not isinstance(value, dict) or "messages" not in value:
                         continue
@@ -127,6 +146,12 @@ def chat(message: str):
                     elif content:
                         text = json.dumps(content) if isinstance(content, list) else str(content)
                         yield _sse("assistant", content=text)
+
+            # Persist final assistant message to history
+            if msgs and hasattr(msgs[-1], "content"):
+                last = msgs[-1]
+                history.append({"role": "assistant", "content": last.content})
+
         except Exception as exc:
             yield _sse("error", content=str(exc))
         yield _sse("done")

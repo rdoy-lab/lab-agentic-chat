@@ -13,4 +13,5 @@ dependencies = [
     "sse-starlette",
     "arize-phoenix-otel",
     "openinference-instrumentation-langchain",
+    "cachetools",
 ]

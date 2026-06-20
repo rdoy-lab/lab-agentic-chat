@@ -48,7 +48,7 @@
   </style>
 </head>
 <body>
-  <header>Chat</header>
+    <header>Chat <button id="new-chat" style="margin-left:12px;padding:4px 12px;border:1px solid #0f3460;border-radius:6px;background:#1a1a2e;color:#e0e0e0;font-size:13px;cursor:pointer;">New Chat</button></header>
   <div id="messages"></div>
   <div id="input-area">
     <input id="input" type="text" placeholder="Type a message…" autocomplete="off" />
@@ -59,8 +59,17 @@
     const messagesEl = document.getElementById("messages");
     const inputEl = document.getElementById("input");
     const sendBtn = document.getElementById("send");
+    const newChatBtn = document.getElementById("new-chat");
 
     marked.setOptions({ breaks: true, gfm: true });
+
+    let sessionId = null;
+
+    newChatBtn.addEventListener("click", () => {
+      sessionId = null;
+      messagesEl.innerHTML = "";
+      inputEl.focus();
+    });
 
     function appendMsg(role, text, toolName) {
       const div = document.createElement("div");
@@ -87,7 +96,10 @@
       messagesEl.appendChild(thinkDiv);
       messagesEl.scrollTop = messagesEl.scrollHeight;
 
-      const es = new EventSource(`/chat?message=${encodeURIComponent(text)}`);
+      const url = sessionId
+        ? `/chat?message=${encodeURIComponent(text)}&session_id=${sessionId}`
+        : `/chat?message=${encodeURIComponent(text)}`;
+      const es = new EventSource(url);
       let assistantDiv = null;
       let assistantContent = "";
 
@@ -98,6 +110,10 @@
         const data = JSON.parse(raw);
         console.log("SSE parsed:", data);
         if (thinkDiv.parentNode) thinkDiv.remove();
+        if (data.type === "session_id") {
+          sessionId = data.session_id;
+          return;
+        }
         if (data.type === "assistant") {
           const text = typeof data.content === "string" ? data.content : JSON.stringify(data.content);
           if (!assistantDiv) {
